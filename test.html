@@ -1,0 +1,444 @@
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Simple Audio Player by p5.js</title>
+    <style>
+body { margin: 0; }
+body > .tp-dfwv { width: 290px; }
+body > .tp-rotv.tp-rotv-expanded .tp-rotv_c { overflow: auto; }
+    </style>
+  </head>
+  <body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.2/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.2/addons/p5.dom.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.2/addons/p5.sound.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tweakpane@1.0.4/dist/tweakpane.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.0.2/chroma.min.js"></script>
+    <script>
+        //------------------------------------------------------------------------------
+        // Modules
+        //------------------------------------------------------------------------------
+
+        class Settings {
+        constructor(opts = { handler: {}, container: undefined }) {
+            this._handler = opts.handler || {};
+
+            const params = {};
+
+            const pane = new Tweakpane({ title: "Settings", container: opts.container });
+            this._pane = pane;
+
+            const callHandler = name => {
+            if (name in this._handler) {
+                this._handler[name](this[name]);
+            }
+            };
+
+            const addInput = (name, opts) => {
+            params[name] = opts.default;
+            this[name] = opts.filter ? opts.filter(params[name]) : params[name];
+            pane.addInput(params, name, opts.attrs).on("change", () => {
+                this[name] = opts.filter ? opts.filter(params[name]) : params[name];
+                callHandler(name);
+            });
+            };
+
+            const addButton = name => {
+            pane.addButton({ title: name }).on("click", () => callHandler(name));
+            };
+
+            const addSeparator = () => pane.addSeparator();
+
+            const keyMirror = ks => ks.reduce((p, c) => { p[c] = c; return p; }, {});
+
+            const hundredth = v => v * 0.01;
+            const color = chroma;
+
+            addInput("frameRate", {
+            default: 24,
+            attrs: { min: 1, max: 60, step: 1 },
+            });
+            addInput("volume", {
+            default: 75,
+            attrs: { min: 0, max: 100, step: 1 },
+            filter: hundredth,
+            });
+            addSeparator();
+            addInput("peakFactor", {
+            default: 4,
+            attrs: { min: 1, max: 16, step: 1 },
+            });
+            addInput("peakNormalizer", {
+            default: "avg",
+            attrs: { options: keyMirror(["avg", "max"]) },
+            });
+            addSeparator();
+            addInput("fftSmooth", {
+            default: 70,
+            attrs: { min: 1, max: 100, step: 1 },
+            filter: hundredth,
+            });
+            addInput("fftBins", {
+            default: 128,
+            attrs: { options: keyMirror([16, 32, 64, 128, 256, 512, 1024]) },
+            });
+            addSeparator();
+            addInput("amplitudeSmooth", {
+            default: 95,
+            attrs: { min: 0, max: 100, step: 1 },
+            filter: hundredth,
+            });
+            addSeparator();
+            addInput("color1a", {
+            default: "#46b836",
+            filter: color,
+            });
+            addInput("color1b", {
+            default: "#c95109",
+            filter: color,
+            });
+            addInput("mixFactor", {
+            default: 1.25,
+            attrs: { min: 0, max: 5 },
+            });
+            addInput("mixType", {
+            default: "hsl",
+            attrs: { options: keyMirror(["hsl", "lrgb", "lab", "rgb", "lch"]) },
+            });
+            addInput("color2a", {
+            default: "#1f3d69",
+            filter: color,
+            });
+            addInput("color2b", {
+            default: "#5fffcf",
+            filter: color,
+            });
+        }
+
+        toggleVisibility() {
+            const el = this._pane.element;
+            el.style.display = el.style.display === "none" ? "block" : "none";
+        }
+        }
+
+        class Message {
+        constructor() {
+            this.reset();
+        }
+
+        reset() {
+            this.type = "";
+            this.text = "";
+            this.color = [];
+        }
+
+        info(text) {
+            this.type = "info";
+            this.text = text;
+            this.color = [255, 255, 255];
+        }
+
+        error(text) {
+            this.type = "error";
+            this.text = text;
+            this.color = [255, 0, 0];
+        }
+        }
+
+        function normalizePeaks(rawPeaks, granularity, normalizer = "avg") {
+        const normalizers = {
+            avg: vs => vs.reduce((p, c) => p + c, 0) / vs.length,
+            max: vs => Math.max(...vs),
+        };
+        const normalize = normalizers[normalizer];
+
+        let srcPeaks = rawPeaks;
+        let dstPeaks = new Float32Array(Math.ceil(srcPeaks.length / granularity));
+        {
+            let i;
+            let vs = [];
+            for (i = 0; i < srcPeaks.length; i++) {
+            vs.push(srcPeaks[i]);
+            if ((i + 1) % granularity === 0) {
+                dstPeaks[Math.ceil(i / granularity)] = normalize(vs);
+                vs = [];
+            }
+            }
+            const n = (i + 1) % granularity;
+            if (n !== 0) {
+            dstPeaks[Math.ceil(i / granularity)] = normalize(vs);
+            }
+        }
+        srcPeaks = dstPeaks;
+        dstPeaks = null;
+        {
+            const max = srcPeaks.reduce((prev, v) => prev < v ? v : prev);
+            dstPeaks = srcPeaks.map(v => v / max);
+        }
+        return dstPeaks;
+        }
+
+        //------------------------------------------------------------------------------
+        // Main
+        //------------------------------------------------------------------------------
+
+        const PEAKS_RENDERING_AREA_MARGIN = 0.3;
+
+        const ctx = {
+        /**
+         * @type Settings
+         */
+        settings: null,
+        /**
+         * @type Message
+         */
+        message: new Message(),
+        /**
+         * @type p5.SoundFile
+         */
+        sound: null,
+        rawPeaks: null,
+        peaks: null,
+        /**
+         * @type p5.FFT
+         */
+        fft: null,
+        spectrum: null,
+        /**
+         * @type p5.Amplitude
+         */
+        amplitude: null,
+        };
+
+        function updatePeaks() {
+        if (!ctx.rawPeaks) {
+            return;
+        }
+        ctx.peaks = normalizePeaks(
+            ctx.rawPeaks,
+            Math.floor(ctx.rawPeaks.length * ctx.settings.peakFactor / width),
+            ctx.settings.peakNormalizer,
+        );
+        }
+
+        function updateSpectrum() {
+        if (!ctx.fft) {
+            return;
+        }
+        // NOTE: The length of the array returned by analyze is not always `numBins`
+        // but the second argument of p5.FFT constructor.
+        ctx.spectrum = ctx.fft.analyze(ctx.settings.numBins);
+        }
+
+        //! p5 function
+        function setup() {
+        ctx.settings = new Settings({
+            handler: {
+            frameRate: v => frameRate(v),
+            volume: v => ctx.sound && ctx.sound.setVolume(v),
+            fftSmooth: v => ctx.fft && ctx.fft.smooth(v),
+            peakFactor: () => updatePeaks(),
+            peakNormalizer: () => updatePeaks(),
+            amplitudeSmooth: v => ctx.amplitude && ctx.amplitude.smooth(v),
+            },
+        });
+
+        soundFormats("mp3", "ogg");
+        frameRate(ctx.settings.frameRate);
+        const canvas = createCanvas(windowWidth, windowHeight);
+
+        // NOTE: Escape global `mousedClicked()` becuase it is emitted
+        // even if `stopPropagation()` was called in overlay elements.
+        canvas.mouseClicked(() => {
+            if (ctx.sound) {
+            if (ctx.sound.isPlaying()) {
+                const posY = mouseY / height;
+                if (posY < PEAKS_RENDERING_AREA_MARGIN || (1 - PEAKS_RENDERING_AREA_MARGIN) < posY) {
+                ctx.sound.pause();
+                } else {
+                const posX = mouseX / width;
+                ctx.sound.jump(ctx.sound.duration() * posX);
+                }
+            } else {
+                ctx.sound.play();
+            }
+            }
+        });
+
+        canvas.drop(file => {
+            if (file.type !== "audio") {
+            ctx.message.error("not audio format");
+            return;
+            }
+            ctx.message.info("loading...");
+
+            ctx.sound = loadSound(file, () => {
+            ctx.message.reset();
+            ctx.sound.setVolume(ctx.settings.volume);
+            ctx.rawPeaks = ctx.sound.getPeaks(ctx.sound.duration() * 1000);
+            updatePeaks();
+            ctx.fft = new p5.FFT(ctx.settings.fftSmooth);
+            ctx.fft.setInput(ctx.sound);
+            ctx.amplitude = new p5.Amplitude(ctx.settings.amplitudeSmooth);
+            ctx.amplitude.setInput(ctx.sound);
+            }, e => {
+            ctx.message.error(e.message);
+            });
+        });
+
+        ctx.message.info("drag & drop an audio file here");
+        }
+
+        //! p5 function
+        function windowResized() {
+        resizeCanvas(windowWidth, windowHeight);
+        }
+
+        //! p5 function
+        function keyPressed() {
+        const key = c => c.charCodeAt(0);
+        const handlers = [
+            {
+            cond: () => true,
+            onKey: {
+                [key("Z")]: () => ctx.settings.toggleVisibility(),
+            },
+            },
+            {
+            cond: () => ctx.sound,
+            onKey: {
+                [key(" ")]: () => {
+                if (ctx.sound.isPlaying()) {
+                    ctx.sound.pause();
+                } else {
+                    ctx.sound.play();
+                }
+                },
+            },
+            },
+            {
+            cond: () => ctx.sound && ctx.sound.isPlaying(),
+            onKey: {
+                [RIGHT_ARROW]: () => ctx.sound.jump(ctx.sound.currentTime() + 5),
+                [LEFT_ARROW]: () => ctx.sound.jump(ctx.sound.currentTime() - 5),
+            },
+            },
+        ];
+        for (const h of handlers) {
+            if (h.cond()) {
+            const fn = h.onKey[keyCode];
+            if (fn) {
+                fn();
+                return;
+            }
+            }
+        }
+        }
+
+        function renderBackground() {
+        if (!ctx.sound || !ctx.amplitude) {
+            background(...ctx.settings.color1a.rgb());
+            return;
+        }
+        const color = chroma.mix(
+            ctx.settings.color1a,
+            ctx.settings.color1b,
+            Math.min(ctx.amplitude.getLevel() / ctx.sound.getVolume() * ctx.settings.mixFactor, 1),
+            ctx.settings.mixType,
+        );
+        background(...color.rgb());
+        }
+
+        function renderPeaks() {
+        if (!ctx.sound || !ctx.peaks) {
+            return;
+        }
+        const len = ctx.peaks.length;
+        const pos = ctx.sound.currentTime() / ctx.sound.duration() * len;
+        const w = width / len;
+        const barWidth = w * 0.8;
+        const maxRectHeight = height * (1 - PEAKS_RENDERING_AREA_MARGIN * 2) * 2 / 3;
+        const baseY = height * PEAKS_RENDERING_AREA_MARGIN + maxRectHeight;
+        rectMode(CORNER);
+        noStroke();
+        for (let i = 0; i < len; i++) {
+            const peak = ctx.peaks[i];
+            const h = Math.max(maxRectHeight * peak, 0.5);
+            const x = w * i;
+            const density = (() => {
+            const di = pos - i;
+            if (di > 1) {
+                return 1;
+            }
+            if (di > 0) {
+                return di;
+            }
+            return 0;
+            })();
+
+            const color = chroma.mix(ctx.settings.color2a, ctx.settings.color2b, density);
+
+            fill(...color.rgb(), 230);
+            rect(x, baseY - h, barWidth, h);
+
+            fill(...color.rgb(), 160);
+            rect(x, baseY, barWidth, h * 0.5);
+        }
+        }
+
+        function renderSpectrum() {
+        if (!ctx.sound || !ctx.spectrum) {
+            return;
+        }
+        const numBins = ctx.settings.fftBins;
+        const spectrum = ctx.spectrum;
+        const w = width / numBins;
+        const barWidth = w * 0.8;
+        const baseY = height;
+        const maxRectHeight = height * 0.25;
+        rectMode(CORNER);
+        noStroke();
+        const color = ctx.settings.color2a;
+        fill(...color.rgb(), 230);
+        for (let i = 0; i < numBins; i++) {
+            const x = w * i;
+            const h = maxRectHeight * spectrum[i] / 255;
+            rect(x, baseY - h, barWidth, h);
+        }
+        }
+
+        function renderMessage() {
+        if (ctx.message.type === "") {
+            return;
+        }
+        textSize(15);
+        fill(...ctx.message.color);
+        text(`${ctx.message.type.toUpperCase()}: ${ctx.message.text}`, 10, 10, width - 10, height - 10);
+        }
+
+        function renderPlayPositionIndicator() {
+        if (!ctx.sound) {
+            return
+        }
+        const posY = mouseY / height;
+        if (posY < PEAKS_RENDERING_AREA_MARGIN || (1 - PEAKS_RENDERING_AREA_MARGIN) < posY) {
+            return;
+        }
+        noStroke();
+        rectMode(CORNER);
+        fill(...ctx.settings.color1a.luminance(1).rgb(), 100);
+        rect(mouseX, height * PEAKS_RENDERING_AREA_MARGIN, 1, height * (1 - PEAKS_RENDERING_AREA_MARGIN * 2));
+        }
+
+        //! p5 function
+        function draw() {
+  updateSpectrum();
+  renderBackground();
+  renderPeaks();
+  renderSpectrum();
+  renderMessage();
+  renderPlayPositionIndicator();
+}
+    </script>
+  </body>
+</html>
