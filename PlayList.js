@@ -31,6 +31,9 @@ export class PlayList
         track.whenClicked(() => {
             this.play(track);
         });
+        track.whenEnded(() => {
+            this.controls.setPaused();
+        });
     }
 
     getCurrent() {

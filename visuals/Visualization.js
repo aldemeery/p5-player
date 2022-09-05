@@ -6,6 +6,10 @@ export class Visualization
         this.whenClickedHandler = () => {};
     }
 
+    setup(p, fourier) {
+        // To override...
+    }
+
     addToUi(p, parent) {
 		this.domElement = p.createElement('li')
         this.domElement.class('track').parent(parent);

@@ -3,9 +3,14 @@ import { PlayList } from "./PlayList.js";
 import { Sketch } from "./Sketch.js";
 import { Track } from "./Track.js";
 import { Visualizer } from "./Visualizer.js";
+import { Pulse } from "./visuals/Pulse.js";
 import { JumpingBars } from "./visuals/JumpingBars.js";
 import { Spectrum } from "./visuals/Spectrum.js";
 import { WavePattern } from "./visuals/WavePattern.js";
+import { Particles } from "./visuals/Particles.js";
+import { PeakDetect } from "./visuals/PeakDetect.js";
+import { CorrelationCircle } from "./visuals/CorrelationCircle.js";
+import { Simple } from "./visuals/Simple.js";
 
 export class Player
 {
@@ -45,6 +50,7 @@ export class Player
         view.class('view').parent(container);
 
         this.registerVisualizations();
+        this.setupVisualizations(p, this.fourier);
 
         this.playList.draw(p, view);
         this.visualizer.draw(p, view);
@@ -58,6 +64,17 @@ export class Player
         this.visualizer.add(new JumpingBars());
         this.visualizer.add(new Spectrum());
         this.visualizer.add(new WavePattern());
+        this.visualizer.add(new Pulse());
+        this.visualizer.add(new Particles());
+        this.visualizer.add(new PeakDetect());
+        this.visualizer.add(new Simple());
+        this.visualizer.add(new CorrelationCircle());
+    }
+
+    setupVisualizations(p, fourier) {
+        this.visualizer.visualizations.forEach(visualization => {
+            visualization.setup(p, fourier);
+        });
     }
 
     draw(p) {
