@@ -1,4 +1,8 @@
+import { Controls } from "./Controls.js";
+import { PlayList } from "./PlayList.js";
 import { Sketch } from "./Sketch.js";
+import { Track } from "./Track.js";
+import { Visualizer } from "./Visualizer.js";
 
 export class Player
 {
@@ -6,9 +10,11 @@ export class Player
         this.mounted = false;
         this.visualizations = visualizations;
         this.p5 = null;
-        this.sound = null;
         this.fourier = null;
-        this.playButton = null;
+        this.volume = null;
+        this.controls = new Controls();
+        this.playList = new PlayList(this.controls);
+        this.visualizer = new Visualizer();
     }
 
     mount(id) {
@@ -18,43 +24,75 @@ export class Player
     }
 
     preload(p) {
-        this.sound = p.loadSound('assets/stomper_reggae_bit.mp3');
-        // this.playButton = p.loadImage('assets/play.png');
+        this.playList.add(new Track('Rocket', 'assets/rocket.wav'));
+        this.playList.add(new Track('Stomper Reggae Bit', 'assets/stomper_reggae_bit.mp3'));
     }
 
     setup(p) {
-        this.playButton = p.createImg('assets/play.png');
-        this.playButton.class('play-btn');
-        this.playButton.mousePressed(this.togglePlaying());
-        p.background('#171b24');
+        const container = p.createDiv();
+        container.class('container');
+
+        const view = p.createDiv();
+        view.class('view').parent(container);
+
+        this.playList.draw(p, view);
+        this.visualizer.draw(p, view);
+
+        this.controls.draw(p, container)
+        this.controls.setTrackName(this.playList.getCurrent().getName());
+
+        const settings = p.createDiv();
+        settings.class('settings').parent(view);
+
+        this.registerEvents();
     }
 
     draw(p) {
         p.background('#171b24');
-        this.drawControlPanel(p);
     }
 
     drawSelectedVisualization(p) {
         this.visualizations.selectedVisualization.draw(p, this.fourier);
     }
 
-    drawControlPanel(p) {
-        p.push();
-        p.fill('#283241');
-        p.rect(-1, p.height - 69, p.width + 2, 70);
-        p.pop();
+    registerEvents() {
+        this.registerPlayButtonEvents();
+        this.registerPauseButtonEvents();
+        this.registerNextButtonEvents();
+        this.registerPreviousButtonEvents();
+        this.registerVolumeSliderEvents();
     }
 
-    togglePlaying() {
-        return () => {
-            if (this.sound.isPlaying()) {
-                this.sound.pause();
-                this.playBtn.html = 'Paly';
-            } else {
-                this.sound.play();
-                this.playBtn.html = 'Pause';
-            }
-        }
+    registerVolumeSliderEvents() {
+        this.controls.volumeSlider.elt.addEventListener('input', (e) => {
+            this.playList.getCurrent().setVolume(this.controls.volumeSlider.value());
+        });
+    }
+
+    registerPreviousButtonEvents() {
+        this.controls.previousButton.mousePressed(() => {
+            this.playList.play(this.playList.previous());
+        });
+    }
+
+    registerNextButtonEvents() {
+        this.controls.nextButton.mousePressed(() => {
+            this.playList.play(this.playList.next());
+        });
+    }
+
+    registerPauseButtonEvents() {
+        this.controls.pauseButton.mousePressed(() => {
+            this.playList.getCurrent().pause();
+            this.controls.setPaused();
+        });
+    }
+
+    registerPlayButtonEvents() {
+        this.controls.playButton.mousePressed(() => {
+            this.playList.getCurrent().play();
+            this.controls.setPlaying();
+        });
     }
 
     run() {

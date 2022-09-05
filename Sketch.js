@@ -13,9 +13,8 @@ export class Sketch
     }
 
     setup(p) {
-        p.createCanvas(p.windowWidth * (3 / 4), p.windowHeight * (3 / 4), 100);
-        this.player.setup(p);
         this.player.fourier = new p5.FFT();
+        this.player.setup(p);
     }
 
     draw(p) {
@@ -23,16 +22,11 @@ export class Sketch
         this.player.drawSelectedVisualization(p);
     }
 
-    mouseClicked(p) {
-        // Nothing so far...
-    }
-
     resolve() {
         return (p) => {
             p.preload = () => this.preload(p);
             p.setup = () => this.setup(p);
             p.draw = () => this.draw(p);
-            p.mouseClicked = () => this.mouseClicked(p);
         }
     }
 }
