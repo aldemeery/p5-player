@@ -3,18 +3,19 @@ import { PlayList } from "./PlayList.js";
 import { Sketch } from "./Sketch.js";
 import { Track } from "./Track.js";
 import { Visualizer } from "./Visualizer.js";
+import { JumpingBars } from "./visuals/JumpingBars.js";
+import { Spectrum } from "./visuals/Spectrum.js";
+import { WavePattern } from "./visuals/WavePattern.js";
 
 export class Player
 {
-    constructor({ visualizations }) {
+    constructor() {
         this.mounted = false;
-        this.visualizations = visualizations;
         this.p5 = null;
         this.fourier = null;
-        this.volume = null;
+        this.visualizer = new Visualizer();
         this.controls = new Controls();
         this.playList = new PlayList(this.controls);
-        this.visualizer = new Visualizer();
     }
 
     mount(id) {
@@ -24,35 +25,44 @@ export class Player
     }
 
     preload(p) {
-        this.playList.add(new Track('Rocket', 'assets/rocket.wav'));
         this.playList.add(new Track('Stomper Reggae Bit', 'assets/stomper_reggae_bit.mp3'));
+        this.playList.add(new Track('Bicycle', 'assets/bicycle.mp3'));
+        this.playList.add(new Track('Fluffing a Duck', 'assets/fluffing_a_duck.mp3'));
+        this.playList.add(new Track('Happy Clappy', 'assets/happy_clappy.mp3'));
+        this.playList.add(new Track('La Baguette', 'assets/la_baguette.mp3'));
+        this.playList.add(new Track('Powerful Trap', 'assets/powerful_trap.mp3'));
+        this.playList.add(new Track('Superepic', 'assets/superepic.mp3'));
+        this.playList.add(new Track('Rocket', 'assets/rocket.wav'));
     }
 
     setup(p) {
+        this.fourier = new p5.FFT();
+
         const container = p.createDiv();
         container.class('container');
 
         const view = p.createDiv();
         view.class('view').parent(container);
 
+        this.registerVisualizations();
+
         this.playList.draw(p, view);
         this.visualizer.draw(p, view);
-
         this.controls.draw(p, container)
         this.controls.setTrackName(this.playList.getCurrent().getName());
-
-        const settings = p.createDiv();
-        settings.class('settings').parent(view);
 
         this.registerEvents();
     }
 
-    draw(p) {
-        p.background('#171b24');
+    registerVisualizations() {
+        this.visualizer.add(new JumpingBars());
+        this.visualizer.add(new Spectrum());
+        this.visualizer.add(new WavePattern());
     }
 
-    drawSelectedVisualization(p) {
-        this.visualizations.selectedVisualization.draw(p, this.fourier);
+    draw(p) {
+        p.background('#171b24');
+        this.visualizer.getCurrent().draw(p, this.fourier);
     }
 
     registerEvents() {

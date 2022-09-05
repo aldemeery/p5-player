@@ -10,8 +10,12 @@ export class PlayList
         const playList = p.createDiv()
         playList.class('playlist').parent(parent);
 
+        const header = p.createElement('h2')
+        header.class('header mr-20').parent(playList);
+        header.elt.textContent = 'Playlist';
+
         const list = p.createElement('ul');
-        list.class('tracks').parent(playList);
+        list.class('tracks mr-16').parent(playList);
         this.tracks.forEach(track => {
             track.draw(p, list);
         });

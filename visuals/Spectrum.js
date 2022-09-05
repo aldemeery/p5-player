@@ -1,10 +1,14 @@
-export class Spectrum
+import { Visualization } from "./Visualization.js";
+
+export class Spectrum extends Visualization
 {
 	/**
 	 * Constructor
 	 */
 	constructor() {
+		super();
 		this.name = "spectrum";
+		this.displayName = "Spectrum";
 	}
 
 	/**

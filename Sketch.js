@@ -13,13 +13,11 @@ export class Sketch
     }
 
     setup(p) {
-        this.player.fourier = new p5.FFT();
         this.player.setup(p);
     }
 
     draw(p) {
         this.player.draw(p);
-        this.player.drawSelectedVisualization(p);
     }
 
     resolve() {
