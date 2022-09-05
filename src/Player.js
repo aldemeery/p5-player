@@ -25,19 +25,17 @@ export class Player
 
     mount(id) {
         this.p5 = new p5(new Sketch(this).resolve(), document.querySelector(id));
-
-        this.mounted = true;
     }
 
     preload(p) {
-        this.playList.add(new Track('Stomper Reggae Bit', 'assets/stomper_reggae_bit.mp3'));
-        this.playList.add(new Track('Bicycle', 'assets/bicycle.mp3'));
-        this.playList.add(new Track('Fluffing a Duck', 'assets/fluffing_a_duck.mp3'));
-        this.playList.add(new Track('Happy Clappy', 'assets/happy_clappy.mp3'));
-        this.playList.add(new Track('La Baguette', 'assets/la_baguette.mp3'));
-        this.playList.add(new Track('Powerful Trap', 'assets/powerful_trap.mp3'));
-        this.playList.add(new Track('Superepic', 'assets/superepic.mp3'));
-        this.playList.add(new Track('Rocket', 'assets/rocket.wav'));
+        this.playList.add(new Track('Stomper Reggae Bit', 'assets/audio/stomper_reggae_bit.mp3'));
+        this.playList.add(new Track('Bicycle', 'assets/audio/bicycle.mp3'));
+        this.playList.add(new Track('Fluffing a Duck', 'assets/audio/fluffing_a_duck.mp3'));
+        this.playList.add(new Track('Happy Clappy', 'assets/audio/happy_clappy.mp3'));
+        this.playList.add(new Track('La Baguette', 'assets/audio/la_baguette.mp3'));
+        this.playList.add(new Track('Powerful Trap', 'assets/audio/powerful_trap.mp3'));
+        this.playList.add(new Track('Superepic', 'assets/audio/superepic.mp3'));
+        this.playList.add(new Track('Rocket', 'assets/audio/rocket.wav'));
     }
 
     setup(p) {
@@ -120,13 +118,5 @@ export class Player
             this.playList.getCurrent().play();
             this.controls.setPlaying();
         });
-    }
-
-    run() {
-        if (!this.mounted) {
-            throw new Error('Cannot run the app before mounting it');
-        }
-
-        console.log('Running...');
     }
 }

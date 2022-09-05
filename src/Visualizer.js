@@ -45,12 +45,6 @@ export class Visualizer
         visualization.whenClicked(() => {
             this.choose(visualization);
         });
-
-		// // if this.selectedVisualization is null set the new visualization
-		// // as the current visualiation
-		// if(this.selectedVisualization == null){
-		// 	this.selectVisualization(visualization.name);
-		// }
 	};
 
 	/**
